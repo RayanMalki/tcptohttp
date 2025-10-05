@@ -34,7 +34,7 @@ func main() {
 		fmt.Print(">")
 		line, err := reader.ReadString('\n')
 		if err != nil {
-			log.Println("Error while reading input: %v\n", err)
+			log.Printf("Error while reading input: %v\n", err)
 			os.Exit(1)
 		}
 

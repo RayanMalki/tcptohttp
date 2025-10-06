@@ -29,16 +29,19 @@ func IsKeyCharValid(s string) bool {
 func parseHeader(fieldLine []byte) (string, string, error) {
 	parts := bytes.SplitN(fieldLine, []byte(":"), 2)
 	if len(parts) != 2 {
-		return "", "", fmt.Errorf("malformed field name")
-
+		return "", "", fmt.Errorf("malformed field line")
 	}
-	name := parts[0]
-	value := bytes.TrimSpace(parts[1])
-	if bytes.HasSuffix(name, []byte(" ")) {
-		return "", "", fmt.Errorf("malformed field name")
 
+	rawName := parts[0]
+	rawValue := parts[1]
+
+	if len(rawName) == 0 || bytes.HasPrefix(rawName, []byte(" ")) || bytes.HasSuffix(rawName, []byte(" ")) || bytes.Contains(rawName, []byte(" ")) {
+		return "", "", fmt.Errorf("malformed field name")
 	}
-	return string(name), string(value), nil
+
+	name := string(rawName)
+	value := strings.TrimSpace(string(rawValue))
+	return name, value, nil
 
 }
 func (h Headers) Parse(data []byte) (n int, done bool, err error) {
@@ -63,7 +66,18 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 
 		}
 		read += idx + len(rn)
-		h[name] = value
+
+		if !IsKeyCharValid(name) {
+
+			return 0, false, fmt.Errorf("key contains invalid character in header key")
+		}
+
+		key := strings.ToLower(name)
+		if oldValue, exists := h[key]; exists {
+			h[key] = oldValue + "," + value
+		} else {
+			h[key] = value
+		}
 
 	}
 	return read, done, nil

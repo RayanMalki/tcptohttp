@@ -6,11 +6,17 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/RayanMalki/tcptohttp/internal/headers"
 )
 
 // Request represents a full HTTP request (we're focusing on the request line for now)
 type Request struct {
+	Method      string
+	Path        string
+	Version     string
 	RequestLine RequestLine
+	Headers     headers.Headers
 	state       int
 }
 
@@ -23,8 +29,10 @@ type RequestLine struct {
 
 // Enum (int) for parser state
 const (
-	stateInitialized = iota
-	stateDone
+	requestStateStart = iota
+	requestStateParsingRequestLine
+	requestStateParsingHeaders
+	requestStateDone
 )
 
 // parseRequestLine parses the request line and returns the number of bytes consumed.
@@ -72,30 +80,58 @@ func parseRequestLine(data []byte) (RequestLine, int, error) {
 		HttpVersion:   versionNumber,
 	}, index + 2, nil
 }
+func (r *Request) parseSingle(data []byte) (int, error) {
+	switch r.state {
+	case requestStateParsingRequestLine:
+		reqLine, n, err := parseRequestLine(data)
+		if err != nil {
+			return n, err
+		}
+		if n == 0 {
+			return 0, nil
+		}
+		r.RequestLine = reqLine
+		r.state = requestStateParsingHeaders
+		return n, nil
+
+	case requestStateParsingHeaders:
+		n, done, err := r.Headers.Parse(data)
+		if err != nil {
+			return n, err
+		}
+		if done {
+			r.state = requestStateDone
+		}
+		return n, nil
+
+	default:
+		return 0, fmt.Errorf("invalid parser state: %v", r.state)
+	}
+}
 
 // parse processes chunks of bytes and updates the request state
 func (r *Request) parse(data []byte) (int, error) {
-	if r.state == stateDone {
-		return 0, nil
+	totalBytesParsed := 0
+
+	for r.state != requestStateDone {
+		n, err := r.parseSingle(data[totalBytesParsed:])
+
+		if err != nil {
+			return totalBytesParsed, err
+		}
+		if n == 0 {
+			break
+		}
+
+		totalBytesParsed += n
 	}
 
-	reqLine, consumed, err := parseRequestLine(data)
-	if err != nil {
-		return 0, err
-	}
-	if consumed == 0 {
-		// Not enough data to parse yet
-		return 0, nil
-	}
-
-	r.RequestLine = reqLine
-	r.state = stateDone
-	return consumed, nil
+	return totalBytesParsed, nil
 }
 
 // RequestFromReader reads from a stream (io.Reader) and builds a Request struct
 func RequestFromReader(reader io.Reader) (*Request, error) {
-	r := &Request{state: stateInitialized}
+	r := &Request{state: requestStateParsingRequestLine, Headers: headers.NewHeaders()}
 	buffer := make([]byte, 0, 8)
 	tmp := make([]byte, 8)
 
@@ -109,7 +145,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 				return nil, parseErr
 			}
 
-			if r.state == stateDone {
+			if r.state == requestStateDone {
 				break
 			}
 
@@ -128,7 +164,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		}
 	}
 
-	if r.state != stateDone {
+	if r.state != requestStateDone {
 		return nil, errors.New("incomplete request")
 	}
 

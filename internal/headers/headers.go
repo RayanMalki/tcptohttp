@@ -13,6 +13,14 @@ var rn = []byte("\r\n")
 func NewHeaders() Headers {
 	return map[string]string{}
 }
+
+func (h Headers) Get(key string) string {
+	key = strings.ToLower(key)
+	if val, ok := h[key]; ok {
+		return val
+	}
+	return ""
+}
 func IsKeyCharValid(s string) bool {
 	for _, r := range s {
 		if (r >= 'a' && r <= 'z') ||

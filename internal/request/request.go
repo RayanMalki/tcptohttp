@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 
 	"github.com/RayanMalki/tcptohttp/internal/headers"
@@ -17,6 +18,7 @@ type Request struct {
 	Version     string
 	RequestLine RequestLine
 	Headers     headers.Headers
+	Body        []byte
 	state       int
 }
 
@@ -32,6 +34,7 @@ const (
 	requestStateStart = iota
 	requestStateParsingRequestLine
 	requestStateParsingHeaders
+	requestStateParsingBody
 	requestStateDone
 )
 
@@ -100,9 +103,49 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 			return n, err
 		}
 		if done {
-			r.state = requestStateDone
+			if r.Headers.Get("content-length") != "" {
+				r.state = requestStateParsingBody
+			} else {
+				r.state = requestStateDone
+			}
 		}
 		return n, nil
+
+	case requestStateParsingBody:
+		contentLengthStr := r.Headers.Get("content-length")
+		if contentLengthStr == "" {
+			r.state = requestStateDone
+			return 0, nil
+		}
+
+		// Convert Content-Length to int
+		contentLength, err := strconv.Atoi(contentLengthStr)
+		if err != nil {
+			return 0, fmt.Errorf("invalid Content-Length: %v", err)
+		}
+
+		// Calculate how many bytes are available for body
+		remaining := contentLength - len(r.Body)
+		if remaining <= 0 {
+			r.state = requestStateDone
+			return 0, nil
+		}
+
+		// Determine how much data we can read from this chunk
+		toRead := len(data)
+		if toRead > remaining {
+			toRead = remaining
+		}
+
+		// Append body bytes
+		r.Body = append(r.Body, data[:toRead]...)
+
+		// Check if we read the full body
+		if len(r.Body) == contentLength {
+			r.state = requestStateDone
+		}
+
+		return toRead, nil
 
 	default:
 		return 0, fmt.Errorf("invalid parser state: %v", r.state)

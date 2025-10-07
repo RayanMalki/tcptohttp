@@ -50,5 +50,12 @@ func handleConnection(conn net.Conn) {
 		fmt.Printf("  %s: %s\n", k, v)
 	}
 
+	if len(req.Body) > 0 {
+		fmt.Println("Body:")
+		fmt.Println(string(req.Body))
+	} else {
+		fmt.Println("Body: (empty)")
+	}
+
 	fmt.Println("Connection to", conn.RemoteAddr(), "closed")
 }

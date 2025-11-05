@@ -153,7 +153,7 @@ func (r *Request) parseSingle(data []byte) (int, error) {
 }
 
 // parse processes chunks of bytes and updates the request state
-func (r *Request) parse(data []byte) (int, error) {
+func (r *Request) Parse(data []byte) (int, error) {
 	totalBytesParsed := 0
 
 	for r.state != requestStateDone {
@@ -183,7 +183,7 @@ func RequestFromReader(reader io.Reader) (*Request, error) {
 		if n > 0 {
 			buffer = append(buffer, tmp[:n]...)
 
-			consumed, parseErr := r.parse(buffer)
+			consumed, parseErr := r.Parse(buffer)
 			if parseErr != nil {
 				return nil, parseErr
 			}

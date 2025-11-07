@@ -16,10 +16,25 @@ const (
 	StatusInternalError StatusCode = 500
 )
 
-func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
-	var reason string
+type Writer struct {
+	conn  io.Writer
+	state string //"init", "status_written", "headers_written"
+}
 
-	switch statusCode {
+func NewWriter(conn io.Writer) *Writer {
+	return &Writer{
+		conn:  conn,
+		state: "init",
+	}
+}
+
+func (w *Writer) WriteStatusLine(code StatusCode) error {
+	if w.state != "init" {
+		return fmt.Errorf("status already written")
+	}
+
+	reason := ""
+	switch code {
 	case StatusOK:
 		reason = "OK"
 	case StatusBadRequest:
@@ -30,10 +45,13 @@ func WriteStatusLine(w io.Writer, statusCode StatusCode) error {
 		reason = ""
 	}
 
-	_, err := fmt.Fprintf(w, "HTTP/1.1 %d %s\r\n", statusCode, reason)
+	// Dynamically write the status line
+	if _, err := fmt.Fprintf(w.conn, "HTTP/1.1 %d %s\r\n", code, reason); err != nil {
+		return err
+	}
 
-	return err
-
+	w.state = "status_written"
+	return nil
 }
 
 func GetDefaultHeaders(contentLen int) headers.Headers {
@@ -50,14 +68,36 @@ func GetDefaultHeaders(contentLen int) headers.Headers {
 
 }
 
-func WriteHeaders(w io.Writer, h headers.Headers) error {
-	for key, value := range h {
-		_, err := fmt.Fprintf(w, "%s: %s\r\n", key, value)
-		if err != nil {
+func (w *Writer) WriteHeaders(headers headers.Headers) error {
+	if w.state != "status_written" {
+		return fmt.Errorf("must write status line before headers")
+	}
+
+	for key, value := range headers {
+		if _, err := fmt.Fprintf(w.conn, "%s: %s\r\n", key, value); err != nil {
 			return err
 		}
 	}
 
-	_, err := fmt.Fprint(w, "\r\n")
-	return err
+	if _, err := fmt.Fprint(w.conn, "\r\n"); err != nil {
+		return err
+	}
+
+	w.state = "headers_written"
+	return nil
+}
+
+func (w *Writer) WriteBody(p []byte) (int, error) {
+	if w.state != "headers_written" {
+		return 0, fmt.Errorf("must write headers before body")
+	}
+	bytesWritten, err := w.conn.Write(p)
+
+	if err != nil {
+		return bytesWritten, err
+	}
+
+	w.state = "body_written"
+
+	return bytesWritten, nil
 }

@@ -60,10 +60,16 @@ func parseRequestLine(data []byte) (RequestLine, int, error) {
 	version := parts[2]
 
 	// Validate method: must be uppercase letters only
-	for _, ch := range method {
-		if ch < 'A' || ch > 'Z' {
-			return RequestLine{}, 0, fmt.Errorf("invalid method: %s", method)
+	validMethods := []string{"GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS"}
+	isValid := false
+	for _, m := range validMethods {
+		if method == m {
+			isValid = true
+			break
 		}
+	}
+	if !isValid {
+		return RequestLine{}, 0, fmt.Errorf("invalid HTTP method: %s", method)
 	}
 
 	// Validate version format: HTTP/1.1 only

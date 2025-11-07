@@ -90,3 +90,7 @@ func (h Headers) Parse(data []byte) (n int, done bool, err error) {
 	}
 	return read, done, nil
 }
+
+func (h Headers) Set(key, value string) {
+	h[strings.ToLower(key)] = value
+}

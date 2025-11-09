@@ -20,6 +20,27 @@ import (
 const port = 42069
 
 func myHandler(w *response.Writer, req *request.Request) {
+	if strings.HasPrefix(req.RequestLine.RequestTarget, "/video/") {
+		filename := strings.TrimPrefix(req.RequestLine.RequestTarget, "/video/")
+		filepath := "assets/" + filename
+
+		data, err := os.ReadFile(filepath)
+		if err != nil {
+			w.WriteStatusLine(response.StatusBadRequest)
+			headers := response.GetDefaultHeaders(0)
+			headers.Set("Content-Type", "text/html")
+			w.WriteHeaders(headers)
+			w.WriteBody([]byte("<html><body><h1>Video Not Found</h1></body></html>"))
+			return
+		}
+
+		w.WriteStatusLine(response.StatusOK)
+		headers := response.GetDefaultHeaders(len(data))
+		headers.Set("Content-Type", "video/mp4")
+		w.WriteHeaders(headers)
+		w.WriteBody(data)
+		return
+	}
 	if strings.HasPrefix(req.RequestLine.RequestTarget, "/httpbin/") {
 		path := strings.TrimPrefix(req.RequestLine.RequestTarget, "/httpbin/")
 		url := "https://httpbin.org/" + path

@@ -101,3 +101,51 @@ func (w *Writer) WriteBody(p []byte) (int, error) {
 
 	return bytesWritten, nil
 }
+
+func (w *Writer) WriteChunkedBody(p []byte) (int, error) {
+
+	hexSize := fmt.Sprintf("%x\r\n", len(p))
+
+	n1, err := w.conn.Write([]byte(hexSize))
+	if err != nil {
+		return n1, err
+	}
+
+	n2, err := w.conn.Write(p)
+	if err != nil {
+		return n1 + n2, err
+	}
+
+	n3, err := w.conn.Write([]byte("\r\n"))
+	if err != nil {
+		return n1 + n2 + n3, err
+	}
+
+	return n1 + n2 + n3, nil
+
+}
+
+func (w *Writer) WriteChunkedBodyDone() (int, error) {
+
+	return w.conn.Write([]byte("0\r\n\r\n"))
+}
+
+func (w *Writer) WriteTrailers(h headers.Headers) error {
+
+	for key, value := range h {
+		_, err := w.conn.Write([]byte(key + ": " + value + "\r\n"))
+		if err != nil {
+			return err
+		}
+
+	}
+
+	_, err := w.conn.Write([]byte("\r\n"))
+	if err != nil {
+		return err
+
+	}
+
+	return nil
+
+}

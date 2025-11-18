@@ -52,28 +52,23 @@ The goal is to provide a **standards-compliant** and **educational** implementat
 
  ```mermaid
 flowchart LR
-    %% Client
-    subgraph CLIENT [Client Side]
-        C[Client (curl / browser)]
+    subgraph CLIENT["Client Side"]
+        C["Client (curl / browser)"]
     end
 
-    %% Go HTTP server
-    subgraph GO [Go HTTP Server]
-        M[Server - main.go]
-        RP[Request Parser (package request)]
-        RW[Response Writer (package response)]
-        H[Handler Logic (myHandler)]
+    subgraph GO["Go HTTP Server"]
+        M["Server - main.go"]
+        RP["Request Parser (package request)"]
+        RW["Response Writer (package response)"]
+        H["Handler Logic (myHandler)"]
         M --> RP --> RW --> H
     end
 
-    %% External service
-    subgraph EXT [External Service]
-        E[(httpbin.org)]
+    subgraph EXT["External Service"]
+        E["httpbin.org"]
     end
 
-    %% Flows
     C -- "TCP Request (HTTP/1.1)" --> M
-
     H -- "/httpbin/stream/x (proxy request)" --> E
     E -- "Chunked Body + Trailers" --> RW
     RW -- "Chunked Body + Trailers" --> C
